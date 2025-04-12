@@ -2,8 +2,23 @@ from audio_handler import AudioHandler
 from gemini_client import GeminiClient
 from response_handler import ResponseHandler
 
+def select_audio_device():
+    """Let user select an audio input device."""
+    temp_handler = AudioHandler(use_mock=False)  # Temporary instance to list devices
+    while True:
+        try:
+            device_index = input("\nEnter the Device ID number to use (or press Enter for default): ").strip()
+            if not device_index:  # Empty input - use default
+                return None
+            return int(device_index)
+        except ValueError:
+            print("Please enter a valid number")
+
 def main():
-    audio_handler = AudioHandler()
+    # Let user select audio device
+    #device_index = select_audio_device()
+    
+    audio_handler = AudioHandler(use_mock=False, device_index=0)  # Use default device
     gemini_client = GeminiClient()
     response_handler = ResponseHandler()
 
