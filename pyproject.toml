@@ -1,0 +1,26 @@
+[project]
+name = "voiceagent"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Your Name",email = "you@example.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "langchain (>=0.3.23,<0.4.0)",
+    "langchain-google-genai (>=2.1.2,<3.0.0)",
+    "pyaudio (>=0.2.14,<0.3.0)",
+    "speechrecognition (>=3.14.2,<4.0.0)",
+    "pyttsx3 (>=2.98,<3.0)",
+    "python-dotenv (>=1.1.0,<2.0.0)",
+    "numpy (>=2.2.4,<3.0.0)",
+    "google-cloud-speech (>=2.31.1,<3.0.0)"
+]
+
+[tool.poetry.dependencies]
+python = ">=3.12,<4.0"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
