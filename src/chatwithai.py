@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-st.title("💬 Gemini Chat")
+st.title("💬 Safe Bank of Antartica - Loan Division")
 
 gemini_api_key = st.sidebar.text_input("Google Gemini API Key", type="password")
 
@@ -16,7 +16,8 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 # System prompt for the assistant
-system_prompt = """You are a helpful, friendly AI assistant. 
+system_prompt = """You are a helpful, friendly Customer service assistant working for the Auto Loan section with Safe Bank of Antartica.
+You can answer questions about auto loans, interest rates, and loan applications.
 Be concise and provide accurate information.
 If you don't know something, say so rather than making up information."""
 
@@ -35,9 +36,11 @@ def generate_response(input_text):
         {"role": "system", "content": system_prompt}
     ]
 
-    # Add conversation history
+    # Add last 5 messages from conversation history for better context
     if st.session_state.messages:
-        prompt_messages.append({"role": "user", "content": st.session_state.messages[-1]["content"]})
+        history_messages = st.session_state.messages[-10:]  # Get last 5 pairs of messages (10 messages total)
+        for msg in history_messages:
+            prompt_messages.append({"role": msg["role"], "content": msg["content"]})
 
     # Add user input to the prompt
     prompt_messages.append({"role": "user", "content": input_text})
@@ -54,22 +57,20 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # Accept user input
-if prompt := st.chat_input("What would you like to know?"):
-    if not gemini_api_key:
-        st.warning("Please enter your Google Gemini API key!", icon="⚠")
-    else:
-        # Display user message in chat message container
-        with st.chat_message("user"):
-            st.markdown(prompt)
-        
-        # Add user message to chat history
-        st.session_state.messages.append({"role": "user", "content": prompt})
+if prompt := st.chat_input("What would you like to know?"):   
+    
+    # Display user message in chat message container
+    with st.chat_message("user"):
+        st.markdown(prompt)
+    
+    # Add user message to chat history
+    st.session_state.messages.append({"role": "user", "content": prompt})
 
-        # Generate and display assistant response
-        with st.chat_message("assistant"):
-            response = generate_response(prompt)
-            st.markdown(response)
-        
-        # Add assistant response to chat history
-        st.session_state.messages.append({"role": "assistant", "content": response})
+    # Generate and display assistant response
+    with st.chat_message("assistant"):
+        response = generate_response(prompt)
+        st.markdown(response)
+    
+    # Add assistant response to chat history
+    st.session_state.messages.append({"role": "assistant", "content": response})
 
