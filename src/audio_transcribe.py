@@ -25,7 +25,7 @@ if not os.path.exists(audio_file):
 # Transcribe the audio
 try:
     print("Transcribing audio...")
-    result = model.transcribe(audio_file)
+    result = model.transcribe(audio_file, language="en")
     print("Transcription:")
     print(result["text"])
 except Exception as e:
