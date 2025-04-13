@@ -1,5 +1,7 @@
 from dotenv import load_dotenv
 import os
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.messages import SystemMessage, HumanMessage
 from google.genai.client import Client
 from google.genai import types
 import base64
@@ -12,8 +14,15 @@ class GeminiClient:
         if not api_key:
             raise ValueError("GOOGLE_API_KEY environment variable not set")
 
-        # Initialize the generative model client with the API key
-        self.client = Client(api_key=api_key)
+        # Initialize ChatGoogleGenerativeAI for text conversations
+        self.chat_model = ChatGoogleGenerativeAI(
+            model="gemini-2.0-flash",
+            google_api_key=api_key,
+            convert_system_message_to_human=True
+        )
+        
+        # Initialize original Gemini client for audio transcription
+        self.genai_client = Client(api_key=api_key)
         self.model_name = "gemini-2.0-flash-001"
 
     def get_response(self, user_input):
@@ -21,24 +30,18 @@ class GeminiClient:
         if not user_input:
             return "I'm sorry, I didn't catch that. How can I assist you?"
 
-        # Create content with text part
-        content = types.Content(
-            parts=[types.Part(text=user_input)]
-        )
+        # Create messages for the conversation
+        messages = [
+            SystemMessage(content="You are a helpful AI assistant. Be concise and provide accurate information."),
+            HumanMessage(content=user_input)
+        ]
 
-        # Generate response using the model
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=content,
-            config=types.GenerationConfig(
-                temperature=0.7,
-                max_output_tokens=256
-            )
-        )
-        return response.text
+        # Generate response using the ChatGoogleGenerativeAI model
+        response = self.chat_model.invoke(messages)
+        return response.content
 
     def transcribe_audio(self, audio_file_path):
-        """Transcribe audio using Gemini 2.0 Flash."""
+        """Transcribe audio using Gemini."""
         try:
             # Read the audio file
             with open(audio_file_path, 'rb') as audio_file:
@@ -56,7 +59,7 @@ class GeminiClient:
             Return only the transcribed text without any additional commentary.
             If you can't understand something clearly, use [...] to indicate unclear parts."""
 
-            # Create content with text and audio parts
+            # Create content with text and audio parts using the original Gemini API
             content = types.Content(
                 parts=[
                     types.Part(text=prompt),
@@ -69,13 +72,9 @@ class GeminiClient:
                 ]
             )
 
-            # Generate response using the model
+            # Generate response using the original Gemini client
             print("Sending transcription request to Gemini model...")
-            print(dir(types.GenerationConfig))
-
-
-
-            response = self.client.models.generate_content(
+            response = self.genai_client.models.generate_content(
                 model=self.model_name,
                 contents=content,
                 config=types.GenerationConfig(
@@ -89,7 +88,6 @@ class GeminiClient:
                 return None
 
             print("Transcription completed successfully.")
-            # Extract the transcription text
             return response.text.strip()
 
         except Exception as e:

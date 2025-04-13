@@ -4,8 +4,18 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, AIMessage
 import os
 from dotenv import load_dotenv
+from audio_handler import AudioHandler
+from response_handler import ResponseHandler
 
 load_dotenv()
+
+# Initialize voice components
+if "audio_handler" not in st.session_state:
+    st.session_state.audio_handler = AudioHandler(use_mock=False)
+if "response_handler" not in st.session_state:
+    st.session_state.response_handler = ResponseHandler()
+if "gemini_client" not in st.session_state:
+    st.session_state.gemini_client = GeminiClient()
 
 st.title("💬 Safe Bank of Antartica - Loan Division")
 
@@ -56,9 +66,40 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Accept user input
+# Add voice input button
+col1, col2 = st.columns([8, 2])
+with col2:
+    if st.button("🎤 Voice Input", key="voice_button"):
+        with st.spinner("Listening..."):
+            # Record audio
+            audio_file = st.session_state.audio_handler.record_dynamic_audio()
+            
+            if audio_file:
+                # Transcribe audio
+                transcript = st.session_state.gemini_client.transcribe_audio(audio_file)
+                
+                if transcript:
+                    # Display user's transcribed message
+                    with st.chat_message("user"):
+                        st.markdown(transcript)
+                    
+                    # Add user message to chat history
+                    st.session_state.messages.append({"role": "user", "content": transcript})
+                    
+                    # Generate and display assistant response
+                    with st.chat_message("assistant"):
+                        response = generate_response(transcript)
+                        st.markdown(response)
+                        # Speak the response
+                        st.session_state.response_handler.speak(response)
+                    
+                    # Add assistant response to chat history
+                    st.session_state.messages.append({"role": "assistant", "content": response})
+                else:
+                    st.error("Sorry, I couldn't understand the audio. Please try again.")
+
+# Accept text input
 if prompt := st.chat_input("What would you like to know?"):   
-    
     # Display user message in chat message container
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -70,6 +111,8 @@ if prompt := st.chat_input("What would you like to know?"):
     with st.chat_message("assistant"):
         response = generate_response(prompt)
         st.markdown(response)
+        # Speak the response for text input as well
+        st.session_state.response_handler.speak(response)
     
     # Add assistant response to chat history
     st.session_state.messages.append({"role": "assistant", "content": response})

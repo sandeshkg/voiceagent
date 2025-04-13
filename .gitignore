@@ -1,3 +1,4 @@
 .env
 google*
 __pycache__
+recorded_audio.wav
