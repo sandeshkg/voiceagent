@@ -18,7 +18,8 @@ dependencies = [
     "google-genai (>=1.10.0)",
     "langgraph (>=0.3.29,<0.4.0)",
     "graphviz (>=0.20.3,<0.21.0)",
-    "streamlit (>=1.44.1,<2.0.0)"
+    "streamlit (>=1.44.1,<2.0.0)",
+    "openai-whisper (>=20240930,<20240931)",
 ]
 
 [tool]

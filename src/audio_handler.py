@@ -16,8 +16,8 @@ class AudioHandler:
         self.chunk = 512  # Reduced from 1024 for faster response
         self.threshold = 8.0
         self.silence_threshold = 6.0
-        self.silence_limit = 1.5
-        self.silence_frames_threshold = int(1.5 * 44100 / 512)  # Adjusted for new chunk size
+        self.silence_limit = 0.6  # Changed from 1.5 to 0.6 seconds
+        self.silence_frames_threshold = int(0.6 * 44100 / 512)  # Adjusted for new silence limit
         self.prev_audio = 0.5
         self.filename = "recorded_audio.wav"
         self.use_mock = use_mock

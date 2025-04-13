@@ -3,9 +3,14 @@ from gemini_client import GeminiClient
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, AIMessage
 import os
+import logging
 from dotenv import load_dotenv
 from audio_handler import AudioHandler
 from response_handler import ResponseHandler
+import whisper
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 load_dotenv()
 
@@ -28,7 +33,7 @@ if "messages" not in st.session_state:
 # System prompt for the assistant
 system_prompt = """You are a helpful, friendly Customer service assistant working for the Auto Loan section with Safe Bank of Antartica.
 You can answer questions about auto loans, interest rates, and loan applications.
-Be concise and provide accurate information.
+Be concise and provide accurate information. Response should not exceed 100 words.
 If you don't know something, say so rather than making up information."""
 
 # Initialize Gemini model
@@ -61,42 +66,64 @@ def generate_response(input_text):
 
     return response.content
 
-# Display chat messages from history on app rerun
+# Load the Whisper model (you can use 'base', 'small', 'medium', or 'large')
+model = whisper.load_model("base")
+
+def transcribe_audio(audio_file_path):
+    """Transcribe audio using Whisper."""
+    if not os.path.exists(audio_file_path):
+        logging.error(f"Audio file '{audio_file_path}' does not exist.")
+        return "Error: Audio file not found."
+
+    try:
+        logging.info(f"Starting transcription for file: {audio_file_path}")
+        result = model.transcribe(audio_file_path)
+        logging.info("Transcription completed successfully.")
+        logging.debug(f"Transcription result: {result}")
+        return result["text"]
+    except Exception as e:
+        logging.error(f"An error occurred during transcription: {e}")
+        return f"An error occurred during transcription: {e}"
+
+# Add spacing between chat messages and other UI elements
+st.markdown("<style> .stChatMessage { margin-bottom: 20px; } </style>", unsafe_allow_html=True)
+
+# Ensure proper alignment of chat messages
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
 # Add voice input button
-col1, col2 = st.columns([8, 2])
-with col2:
-    if st.button("🎤 Voice Input", key="voice_button"):
-        with st.spinner("Listening..."):
-            # Record audio
-            audio_file = st.session_state.audio_handler.record_dynamic_audio()
-            
-            if audio_file:
-                # Transcribe audio
-                transcript = st.session_state.gemini_client.transcribe_audio(audio_file)
-                
-                if transcript:
-                    # Display user's transcribed message
-                    with st.chat_message("user"):
-                        st.markdown(transcript)
-                    
-                    # Add user message to chat history
-                    st.session_state.messages.append({"role": "user", "content": transcript})
-                    
-                    # Generate and display assistant response
-                    with st.chat_message("assistant"):
-                        response = generate_response(transcript)
-                        st.markdown(response)
-                        # Speak the response
-                        st.session_state.response_handler.speak(response)
-                    
-                    # Add assistant response to chat history
-                    st.session_state.messages.append({"role": "assistant", "content": response})
-                else:
-                    st.error("Sorry, I couldn't understand the audio. Please try again.")
+
+if st.button("🎤 Voice Input", key="voice_button"):
+    with st.spinner("Listening..."):
+        # Record audio
+        audio_file_path = "recorded_audio.wav"  # Path to save the recorded audio
+        audio_file = st.session_state.audio_handler.record_dynamic_audio()
+
+        if audio_file:
+            # Transcribe audio using Whisper
+            transcript = transcribe_audio(audio_file_path)
+
+            if transcript:
+                # Display user's transcribed message
+                with st.chat_message("user"):
+                    st.markdown(transcript)
+
+                # Add user message to chat history
+                st.session_state.messages.append({"role": "user", "content": transcript})
+
+                # Generate and display assistant response
+                with st.chat_message("assistant"):
+                    response = generate_response(transcript)
+                    st.markdown(response)
+                    # Speak the response
+                    st.session_state.response_handler.speak(response)
+
+                # Add assistant response to chat history
+                st.session_state.messages.append({"role": "assistant", "content": response})
+            else:
+                st.error("Sorry, I couldn't understand the audio. Please try again.")
 
 # Accept text input
 if prompt := st.chat_input("What would you like to know?"):   
