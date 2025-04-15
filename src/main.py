@@ -40,7 +40,7 @@ def main():
                     response = gemini_client.get_response(user_input)
                     
                     # Step 4: Speak the response
-                    response_handler.speak(response)
+                    #response_handler.speak(response)
             
     except KeyboardInterrupt:
         print("\nStopping the agent. Goodbye!")

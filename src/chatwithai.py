@@ -6,11 +6,11 @@ import os
 import logging
 from dotenv import load_dotenv
 from audio_handler import AudioHandler
-from response_handler import ResponseHandler
+from tts_handlers import SVOXPicoTTSHandler
 import whisper
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
 load_dotenv()
 
@@ -18,9 +18,13 @@ load_dotenv()
 if "audio_handler" not in st.session_state:
     st.session_state.audio_handler = AudioHandler(use_mock=False)
 if "response_handler" not in st.session_state:
-    st.session_state.response_handler = ResponseHandler()
+    st.session_state.response_handler = SVOXPicoTTSHandler()
 if "gemini_client" not in st.session_state:
     st.session_state.gemini_client = GeminiClient()
+    
+# Initialize is_speaking state if not already present
+if "is_speaking" not in st.session_state:
+    st.session_state.is_speaking = False
 
 st.title("💬 Safe Bank of Antartica - Loan Division")
 
@@ -93,9 +97,17 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Add voice input button
+# Function to handle stopping audio playback
+def stop_audio():
+    if st.session_state.response_handler.stop():
+        st.session_state.is_speaking = False
+        st.success("Audio playback stopped")
 
-if st.button("🎤 Voice Input", key="voice_button"):
+# Create a row with two buttons side by side
+col1, col2 = st.columns(2)
+
+# Voice Input button
+if col1.button("🎤 Voice Input", key="voice_button"):
     with st.spinner("Listening..."):
         # Record audio
         audio_file_path = "recorded_audio.wav"  # Path to save the recorded audio
@@ -117,13 +129,19 @@ if st.button("🎤 Voice Input", key="voice_button"):
                 with st.chat_message("assistant"):
                     response = generate_response(transcript)
                     st.markdown(response)
-                    # Speak the response
+                    # Update speaking state and speak the response
+                    st.session_state.is_speaking = True
                     st.session_state.response_handler.speak(response)
+                    st.session_state.is_speaking = False
 
                 # Add assistant response to chat history
                 st.session_state.messages.append({"role": "assistant", "content": response})
             else:
                 st.error("Sorry, I couldn't understand the audio. Please try again.")
+
+# Stop button
+if col2.button("🔇 Stop Audio", key="stop_button"):
+    stop_audio()
 
 # Accept text input
 if prompt := st.chat_input("What would you like to know?"):   
@@ -138,8 +156,10 @@ if prompt := st.chat_input("What would you like to know?"):
     with st.chat_message("assistant"):
         response = generate_response(prompt)
         st.markdown(response)
-        # Speak the response for text input as well
+        # Update speaking state and speak the response
+        st.session_state.is_speaking = True
         st.session_state.response_handler.speak(response)
+        st.session_state.is_speaking = False
     
     # Add assistant response to chat history
     st.session_state.messages.append({"role": "assistant", "content": response})
