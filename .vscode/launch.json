@@ -19,30 +19,13 @@
             }
         },
         {
-            "name": "Streamlit: Debug app.py",
+            "name": "Streamlit: Debug Voice Chat",
             "type": "debugpy",
             "request": "launch",
             "module": "streamlit",
             "args": [
                 "run",
-                "${workspaceFolder}/src/app.py",
-                "--server.runOnSave=true"
-            ],
-            "justMyCode": true,
-            "python": "${command:python.interpreterPath}",
-            "console": "integratedTerminal",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
-        {
-            "name": "Streamlit: Debug chat with ai.py",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "streamlit",
-            "args": [
-                "run",
-                "${workspaceFolder}/src/chatwithai.py",
+                "${workspaceFolder}/src/main.py",
                 "--server.runOnSave=true"
             ],
             "justMyCode": true,
