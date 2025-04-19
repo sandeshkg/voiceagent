@@ -1,17 +1,76 @@
-import pyttsx3
+"""
+Text-to-speech service module.
+This module handles all text-to-speech functionality, using SVOX Pico for high-quality speech.
+"""
+
+import os
+import logging
 import re
 import subprocess
 import tempfile
-import os
-import signal
 import threading
 import shutil
+from typing import List, Optional
 
-class BaseTTSHandler:
-    """Base class for text-to-speech handlers with common functionality."""
+class SpeechService:
+    """Service for text-to-speech conversion with high quality audio."""
     
-    def clean_text(self, text):
-        """Remove special characters that cause speech issues."""
+    def __init__(self, audio_quality: str = "medium", language: str = "en-US"):
+        """Initialize the speech service.
+        
+        Args:
+            audio_quality: Quality level ("low", "medium", "high", "ultra")
+            language: Language code for speech (e.g., "en-US" for US English)
+        """
+        self.logger = logging.getLogger(__name__)
+        self.language = language
+        self.audio_quality = audio_quality
+        
+        # Verify SVOX Pico is installed
+        self._verify_pico_installation()
+        
+        # Find available audio players
+        self.players = self._find_available_players()
+        if self.players:
+            self.logger.info(f"Using audio player: {self.players[0]}")
+        else:
+            self.logger.warning("No suitable audio players found")
+            
+        # Audio playback process tracking
+        self.current_process = None
+        self.is_speaking = False
+        self.play_thread = None
+        self.temp_files = []  # Track all temporary files
+    
+    def _verify_pico_installation(self):
+        """Verify that SVOX Pico is installed."""
+        try:
+            subprocess.run(['which', 'pico2wave'], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            self.logger.info("SVOX Pico TTS is available")
+        except subprocess.CalledProcessError:
+            self.logger.error("SVOX Pico TTS not found. Install with: sudo apt-get install libttspico-utils")
+            raise RuntimeError("SVOX Pico TTS not installed")
+    
+    def _find_available_players(self) -> List[str]:
+        """Find available audio players in order of preference."""
+        players = []
+        for player in ['play', 'mpv', 'ffplay', 'aplay']:
+            try:
+                subprocess.run(['which', player], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                players.append(player)
+            except subprocess.CalledProcessError:
+                pass
+        return players
+    
+    def clean_text(self, text: str) -> str:
+        """Clean text for better speech synthesis.
+        
+        Args:
+            text: Input text to clean
+            
+        Returns:
+            Cleaned text ready for speech synthesis
+        """
         # Remove special characters but keep basic punctuation
         text = re.sub(r'[*`#@$%^&+=<>~|]', '', text)
         
@@ -25,90 +84,14 @@ class BaseTTSHandler:
         text = re.sub(r'\?+', '?', text)
         
         return text.strip()
-
-
-class EspeakTTSHandler(BaseTTSHandler):
-    """TTS Handler that uses pyttsx3 with espeak backend."""
     
-    def __init__(self):
-        self.engine = pyttsx3.init('espeak')
+    def speak(self, text: str) -> None:
+        """Convert text to speech with high-quality voice.
         
-        # Get available voices and set to US English if available
-        voices = self.engine.getProperty('voices')
-        
-        # Try to find US English voice
-        us_voice = next((voice for voice in voices if 'en-us' in str(voice.languages).lower()), None)
-        if us_voice:
-            self.engine.setProperty('voice', us_voice.id)
-            print(f"Using US English voice: {us_voice.name}")
-        elif voices:  # If no US voice, use the first available voice
-            self.engine.setProperty('voice', voices[0].id)
-            print(f"Using default voice: {voices[0].name}")
-            
-        # Optimize speech parameters
-        self.engine.setProperty('rate', 150)
-        self.engine.setProperty('volume', 0.9)
-        self.engine.setProperty('pitch', 100)
-    
-    def speak(self, text):
-        """Convert text to speech with cleaned text."""
-        print(f"Speaking with pyttsx3/espeak: {text}")
-        
-        # Clean the text before speaking
-        cleaned_text = self.clean_text(text)
-        
-        # Speak the cleaned text
-        self.engine.say(cleaned_text)
-        self.engine.runAndWait()
-
-
-class SVOXPicoTTSHandler(BaseTTSHandler):
-    """TTS Handler that uses SVOX Pico for better quality speech."""
-    
-    def __init__(self, audio_quality="medium"):
-        # Check if pico2wave is installed
-        try:
-            subprocess.run(['which', 'pico2wave'], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            print("SVOX Pico TTS is available")
-        except subprocess.CalledProcessError:
-            print("SVOX Pico TTS not found. Install with: sudo apt-get install libttspico-utils")
-            raise RuntimeError("SVOX Pico TTS not installed")
-        
-        # Set default language to US English
-        self.language = "en-US"
-        print(f"Using SVOX Pico with language: {self.language}")
-        
-        # Set audio quality (low, medium, high, ultra)
-        self.audio_quality = audio_quality
-        
-        # Audio players in preference order
-        self.players = self._find_available_players()
-        if not self.players:
-            print("No suitable audio players found....")
-            
-                
-        print(f"Using audio player: {self.players[0]}")
-        
-        # Audio playback process tracking
-        self.current_process = None
-        self.is_speaking = False
-        self.play_thread = None
-        self.temp_files = []  # Track all temporary files
-    
-    def _find_available_players(self):
-        """Find available audio players in order of preference."""
-        players = []
-        for player in ['play', 'mpv', 'ffplay', 'aplay']:
-            try:
-                subprocess.run(['which', player], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                players.append(player)
-            except subprocess.CalledProcessError:
-                pass
-        return players
-    
-    def speak(self, text):
-        """Convert text to speech with SVOX Pico."""
-        print(f"Speaking with SVOX Pico: {text}")
+        Args:
+            text: Text to convert to speech
+        """
+        self.logger.info(f"Speaking with SVOX Pico: {text}")
         
         # Clean the text before speaking
         cleaned_text = self.clean_text(text)
@@ -147,12 +130,17 @@ class SVOXPicoTTSHandler(BaseTTSHandler):
             self.play_thread.start()
             
         except Exception as e:
-            print(f"Error generating speech: {e}")
+            self.logger.error(f"Error generating speech: {e}")
             self.is_speaking = False
             self._cleanup_temp_files()
-    
-    def _enhance_audio(self, input_file, output_file):
-        """Enhance audio quality based on selected quality level."""
+
+    def _enhance_audio(self, input_file: str, output_file: str) -> None:
+        """Enhance audio quality based on selected quality level.
+        
+        Args:
+            input_file: Path to the input audio file
+            output_file: Path to save the enhanced audio file
+        """
         try:
             if self.audio_quality == "low":
                 # Just copy the file - no enhancements
@@ -195,7 +183,7 @@ class SVOXPicoTTSHandler(BaseTTSHandler):
                         ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                     return
                 except Exception as e:
-                    print(f"ffmpeg processing failed: {e}")
+                    self.logger.error(f"ffmpeg processing failed: {e}")
                     shutil.copy2(input_file, output_file)
                     return
             
@@ -225,14 +213,22 @@ class SVOXPicoTTSHandler(BaseTTSHandler):
                 ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 
         except Exception as e:
-            print(f"Audio enhancement failed: {e}")
+            self.logger.error(f"Audio enhancement failed: {e}")
             # Fall back to original file if enhancement fails
             if not os.path.exists(output_file):
                 shutil.copy2(input_file, output_file)
     
-    def _play_audio_file(self, filename):
-        """Play audio file with the best available player."""
+    def _play_audio_file(self, filename: str) -> None:
+        """Play audio file with the best available player.
+        
+        Args:
+            filename: Path to the audio file to play
+        """
         try:
+            if not self.players:
+                self.logger.error("No audio players available")
+                return
+                
             player = self.players[0]
             
             if player == 'play':  # SoX
@@ -240,7 +236,10 @@ class SVOXPicoTTSHandler(BaseTTSHandler):
             elif player == 'mpv':
                 self.current_process = subprocess.Popen(['mpv', '--no-terminal', filename])
             elif player == 'ffplay':
-                self.current_process = subprocess.Popen(['ffplay', '-nodisp', '-autoexit', '-hide_banner', '-loglevel', 'quiet', filename])
+                self.current_process = subprocess.Popen([
+                    'ffplay', '-nodisp', '-autoexit', 
+                    '-hide_banner', '-loglevel', 'quiet', filename
+                ])
             else:  # Default to aplay
                 self.current_process = subprocess.Popen(['aplay', filename])
                 
@@ -250,37 +249,28 @@ class SVOXPicoTTSHandler(BaseTTSHandler):
             self.current_process = None
             self._cleanup_temp_files()
     
-    def _cleanup_temp_files(self):
+    def _cleanup_temp_files(self) -> None:
         """Clean up all temporary files created by this instance."""
         for filename in self.temp_files:
             if os.path.exists(filename):
                 try:
                     os.unlink(filename)
-                    print(f"Deleted temporary file: {filename}")
+                    self.logger.debug(f"Deleted temporary file: {filename}")
                 except Exception as e:
-                    print(f"Error deleting temporary file {filename}: {e}")
+                    self.logger.error(f"Error deleting temporary file {filename}: {e}")
         self.temp_files = []
     
-    def stop(self):
-        """Stop the currently playing audio."""
+    def stop(self) -> bool:
+        """Stop the currently playing audio.
+        
+        Returns:
+            True if audio was stopped, False if no audio was playing
+        """
         if self.is_speaking and self.current_process:
-            print("Stopping audio playback")
+            self.logger.info("Stopping audio playback")
             self.current_process.terminate()
             self.current_process = None
             self.is_speaking = False
             self._cleanup_temp_files()  # Clean up immediately when stopped
             return True
         return False
-
-# Default ResponseHandler class for backward compatibility
-class ResponseHandler(SVOXPicoTTSHandler):
-    """Default TTS implementation using SVOX Pico for better quality.
-    
-    This class maintains the original interface for backwards compatibility.
-    Change the parent class to EspeakTTSHandler to use the original implementation.
-    
-    Parameters:
-    audio_quality -- The audio quality level: "low", "medium", "high", or "ultra"
-    """
-    def __init__(self, audio_quality="medium"):
-        super().__init__(audio_quality=audio_quality)
